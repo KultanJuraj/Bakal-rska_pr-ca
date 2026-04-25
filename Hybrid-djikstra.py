@@ -3,25 +3,27 @@ import math
 import random
 import heapq
 from pathlib import Path
+import time
 
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 
 
 
-NUM_VERTICES = 1024
-VERTEX_QUBITS = 10
-TOTAL_QUBITS = 20
-FLAG_QUBIT = 10
-ANCILLA_START = 11
+
+NUM_VERTICES = 2048
+VERTEX_QUBITS = 11
+TOTAL_QUBITS = 22
+FLAG_QUBIT = 11
+ANCILLA_START = 12
 
 GRAPH_FILE = Path(__file__).parent / "graph.csv"
 RESULTS_FILE = "results.csv"
 SUMMARY_FILE = "summary.txt"
 
-SHOTS = 1024
+SHOTS = 128
 
-sim = AerSimulator(max_parallel_threads=0)
+sim = AerSimulator(max_parallel_threads=6)
 
 
 
@@ -173,13 +175,12 @@ def grover_search_candidates(candidates, marked_vertices, shots=SHOTS):
 
     vertex_qubits = list(range(VERTEX_QUBITS))
 
-    # Uniform superposition over all 1024 vertices
     qc.h(vertex_qubits)
 
     oracle = build_oracle_for_marked_set(marked_vertices)
     diffuser = build_diffuser()
 
-    grover_iters = optimal_grover_iterations(2 ** VERTEX_QUBITS, len(marked_vertices))
+    grover_iters = min(5, optimal_grover_iterations(2 ** VERTEX_QUBITS, len(marked_vertices)))
 
     for _ in range(grover_iters):
         qc.compose(oracle, inplace=True)
@@ -295,27 +296,89 @@ def maybe_create_demo_graph(path: str):
 
 
 
+def benchmark(graph, num_runs=10, output_file="benchmark1.csv"):
+
+    rows = []
+
+    vertices = list(graph.keys())
+
+    for run in range(num_runs):
+
+        start = random.choice(vertices)
+        goal = random.choice(vertices)
+
+        while goal == start:
+            goal = random.choice(vertices)
+
+        print(f"\nRun {run}: {start} -> {goal}")
+
+        t0 = time.perf_counter()
+        classical_dist, classical_prev = dijkstra_classical(graph, start, goal)
+        classical_time = time.perf_counter() - t0
+
+        classical_path = reconstruct_path(classical_prev, start, goal)
+        classical_cost = classical_dist[goal]
+
+        t0 = time.perf_counter()
+        hybrid_dist, hybrid_prev, history = hybrid_dijkstra_grover(graph, start, goal)
+        hybrid_time = time.perf_counter() - t0
+
+        hybrid_path = reconstruct_path(hybrid_prev, start, goal)
+        hybrid_cost = hybrid_dist[goal]
+
+        match = (classical_cost == hybrid_cost)
+        print(f"Classical: {classical_cost} ({classical_time:.4f}s)")
+        print(f"Hybrid: {hybrid_cost} ({hybrid_time:.4f}s)")
+        print("Match:", match)
+
+        rows.append({
+            "run": run,
+            "start": start,
+            "goal": goal,
+
+            "classical_time": classical_time,
+            "hybrid_time": hybrid_time,
+
+            "classical_cost": classical_cost,
+            "hybrid_cost": hybrid_cost,
+
+            "classical_path": classical_path,
+            "hybrid_path": hybrid_path,
+
+            "match": match,
+            "hybrid_iterations": len(history),
+        })
+
+
+    with open(output_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print("\nBenchmark saved to:", output_file)
+
 def main():
-    print("Graph file path:", GRAPH_FILE)
-    print("File exists:", Path(GRAPH_FILE).exists())
+    #print("Graph file path:", GRAPH_FILE)
+    #print("File exists:", Path(GRAPH_FILE).exists())
     maybe_create_demo_graph(GRAPH_FILE)
 
     graph = load_graph_from_csv(GRAPH_FILE, num_vertices=NUM_VERTICES)
 
-    start = 0
-    goal = 6
 
-    # Classical reference
+    benchmark(graph, num_runs=5)
+
+    '''start = 0
+    goal = 63
+
     classical_dist, classical_prev = dijkstra_classical(graph, start, goal)
     classical_path = reconstruct_path(classical_prev, start, goal)
     classical_cost = classical_dist[goal]
 
-    # Hybrid run
     hybrid_dist, hybrid_prev, history = hybrid_dijkstra_grover(graph, start, goal, RESULTS_FILE)
     hybrid_path = reconstruct_path(hybrid_prev, start, goal)
     hybrid_cost = hybrid_dist[goal]
 
-    with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
+        with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
         f.write(f"Vertices supported: {NUM_VERTICES}\n")
         f.write(f"Qubits used: {TOTAL_QUBITS}\n")
         f.write(f"Vertex register qubits: {VERTEX_QUBITS}\n\n")
@@ -346,7 +409,7 @@ def main():
     print("Match:", classical_cost == hybrid_cost and classical_path == hybrid_path)
     print()
     print(f"Wrote iteration log to: {RESULTS_FILE}")
-    print(f"Wrote summary to: {SUMMARY_FILE}")
+    print(f"Wrote summary to: {SUMMARY_FILE}")'''
 
 
 if __name__ == "__main__":
