@@ -1,0 +1,17 @@
+num_vertices: 2048
+shots: 8192
+seed: 42
+
+max_parallel_threads: 6
+max_grover_iters: 10
+rounds: 2
+
+graph_file: data/graph2048.csv
+benchmark_file: outputs/benchmark_2048.csv
+results_file: outputs/results_2048.csv
+iteration_log_file: outputs/iteration_2048.txt
+
+verify_quantum_choice: true
+log_iterations: true
+draw_circuit: false
+circuit_image_file: outputs/circuit_2048.jpeg

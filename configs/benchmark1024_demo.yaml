@@ -1,0 +1,17 @@
+num_vertices: 1024
+shots: 8192
+seed: 42
+
+max_parallel_threads: 6
+max_grover_iters: 10
+rounds: 2
+
+graph_file: data/graph1024.csv
+benchmark_file: outputs/benchmark_1024.csv
+results_file: outputs/results_1024.csv
+iteration_log_file: outputs/iteration_1024.txt
+
+verify_quantum_choice: true
+log_iterations: true
+draw_circuit: false
+circuit_image_file: outputs/circuit_1024.jpeg
